@@ -1,0 +1,63 @@
+# PII Guardrail API - Production Dependencies
+# ============================================
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# HTTP Client (for Portkey fallback)
+httpx>=0.26.0
+
+# ===========================================
+# ML/AI Dependencies (for inference)
+# ===========================================
+
+# PyTorch (install separately based on your CUDA version)
+# See: https://pytorch.org/get-started/locally/
+# torch>=2.1.0
+
+# Transformers and PEFT
+transformers>=4.36.0
+peft>=0.7.0
+accelerate>=0.25.0
+
+# Quantization
+bitsandbytes>=0.41.0
+
+# Unsloth (for optimized inference)
+# Install via: pip install unsloth
+# unsloth
+
+# ===========================================
+# Data Generation Dependencies
+# ===========================================
+
+# Google Generative AI (Gemini)
+google-genai>=0.3.0
+
+# Data processing
+datasets>=2.16.0
+
+# ===========================================
+# Evaluation Dependencies
+# ===========================================
+
+scikit-learn>=1.3.0
+
+# ===========================================
+# Development Dependencies
+# ===========================================
+
+python-dotenv>=1.0.0
+
+# ===========================================
+# Optional: Observability
+# ===========================================
+
+# Structured logging
+# python-json-logger>=2.0.0
+
+# Metrics
+# prometheus-client>=0.19.0
+
