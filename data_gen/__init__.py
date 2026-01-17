@@ -1,24 +1,15 @@
 """
-PII Synthetic Data Generation Module
+PII Synthetic Data Generation Module v2
 
 This module provides tools for generating synthetic PII training data
 with support for realistic noise, adversarial patterns, and dangerous negatives.
 
 Key Components:
-- config: Entity patterns, context words, generators
-- templates: Context-rich sentence templates
-- adversarial_templates: Evasion, OCR, informal patterns
-- augmentation: Noise generators, character confusion
-- robust_generator: Production-ready data generator
+- augmentation: Noise generators, character confusion, PII augmenters
+- adversarial_templates: Evasion, OCR, informal patterns, dangerous negatives
+- robust_generator: Production-ready data generator with difficulty levels
 """
 
-from .config import ENTITY_CONFIG, SEVERITY_SCORES
-from .generator import PIIDataGenerator
-from .templates import TEMPLATES
-from .validators import validate_aadhaar, validate_pan
-from .dataset_builder import DatasetBuilder
-
-# Robust generation (recommended for production)
 from .robust_generator import (
     RobustPIIGenerator,
     RobustTrainingSample,
@@ -42,15 +33,6 @@ from .adversarial_templates import (
 )
 
 __all__ = [
-    # Original exports
-    "ENTITY_CONFIG",
-    "SEVERITY_SCORES", 
-    "PIIDataGenerator",
-    "TEMPLATES",
-    "validate_aadhaar",
-    "validate_pan",
-    "DatasetBuilder",
-    
     # Robust generation
     "RobustPIIGenerator",
     "RobustTrainingSample",
@@ -72,4 +54,3 @@ __all__ = [
     "ALL_DANGEROUS_NEGATIVES",
     "get_template_by_difficulty",
 ]
-
