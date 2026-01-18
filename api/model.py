@@ -15,12 +15,68 @@ from pathlib import Path
 from .schemas import DetectedEntity
 
 
-# System prompt for the model
-SYSTEM_PROMPT = """You are a PII detection model. Analyze text and identify PII entities with their exact positions.
+# System prompt for the model (must match training prompt)
+SYSTEM_PROMPT = """You are a PII (Personally Identifiable Information) detection and risk assessment system.
 
-Output JSON with: flagged (bool), entities (array with type, value, start, end), confidence (0-1), reason (string).
+TASK: Analyze text, identify PII entities, and assess their risk level.
 
-Entity types: IN_AADHAAR, IN_PAN, EMAIL_ADDRESS, PHONE_NUMBER, PERSON, US_SSN, CREDIT_CARD"""
+=== STRICT EXTRACTION RULES ===
+1. ONLY report PII that EXACTLY exists in the input text
+2. The "value" field must be a VERBATIM substring from the input
+3. "start" and "end" must be correct character positions
+4. If NO PII exists, return flagged: false with empty entities
+5. NEVER invent, guess, or hallucinate PII values
+
+=== RISK-BASED CLASSIFICATION ===
+
+HIGH RISK (flag immediately, confidence 9-10):
+- Email addresses (any format)
+- Phone numbers (with country code or local)
+- Government IDs: Aadhaar, PAN, SSN, Passport
+- Credit/Debit card numbers
+- Full residential addresses
+- Bank account numbers
+- Full name + contact detail combination
+
+MEDIUM RISK (flag with caution, confidence 6-8):
+- Full name + city/location
+- Full name + workplace/company
+- Employee/Customer ID numbers
+- Date of birth with other identifiers
+- IP addresses in user context
+
+LOW RISK (usually don't flag, confidence 1-5):
+- First name only (no surname)
+- Role-based mentions (CEO, Manager, Candidate)
+- General city/country without identity link
+- Public figures in news context
+- Fictional characters
+- Generic reference numbers (Order ID, Ticket #)
+
+=== PII TYPES TO DETECT ===
+- PERSON: Full names (first + last name together)
+- EMAIL: Email addresses (user@domain.com)
+- PHONE: Phone numbers (+91 XXXXX XXXXX, XXX-XXX-XXXX)
+- IN_AADHAAR: Indian Aadhaar (12 digits: XXXX XXXX XXXX)
+- IN_PAN: Indian PAN (ABCDE1234F format)
+- US_SSN: US Social Security (XXX-XX-XXXX)
+- CREDIT_CARD: Card numbers (13-19 digits)
+
+=== OUTPUT FORMAT (JSON only) ===
+{
+  "flagged": true/false,
+  "confidence": 1-10,
+  "entities": [{"type": "TYPE", "value": "exact_text", "start": N, "end": N}],
+  "reason": "brief explanation with risk assessment"
+}
+
+=== CONFIDENCE SCORING ===
+- 9-10: HIGH RISK - Clear PII with explicit context ("My Aadhaar is", "Email:")
+- 6-8: MEDIUM RISK - PII present but context is ambiguous
+- 3-5: LOW RISK - Pattern matches but likely not sensitive
+- 1-2: Very uncertain - Could be false positive
+
+CRITICAL: If the value does not exist verbatim in the input, do NOT report it."""
 
 
 class PIIDetector:
@@ -45,7 +101,7 @@ class PIIDetector:
             device: Device to load model on ("auto", "cuda", "cpu")
             load_in_4bit: Whether to use 4-bit quantization
         """
-        self.model_path = model_path or os.getenv("MODEL_PATH", "pii-guardrail-lora")
+        self.model_path = model_path or os.getenv("MODEL_PATH", "pii-guardrail-model/lora_adapters")
         self.device = device
         self.load_in_4bit = load_in_4bit
         
@@ -98,7 +154,7 @@ class PIIDetector:
             self.is_loaded = False
             return False
     
-    def _parse_model_output(self, output_text: str) -> Tuple[List[DetectedEntity], float, bool, str]:
+    def _parse_model_output(self, output_text: str, input_text: str = "") -> Tuple[List[DetectedEntity], float, bool, str]:
         """
         Parse the model's JSON output.
         
@@ -116,19 +172,43 @@ class PIIDetector:
                 
                 entities = []
                 for e in data.get('entities', []):
+                    value = e.get('value', '')
+                    
+                    # Grounding validation: only include entities that exist in input
+                    if input_text and value and value not in input_text:
+                        print(f"Grounding check: '{value}' not found in input, skipping")
+                        continue
+                    
+                    # Recalculate start/end positions for grounding
+                    if input_text and value:
+                        actual_start = input_text.find(value)
+                        if actual_start >= 0:
+                            e['start'] = actual_start
+                            e['end'] = actual_start + len(value)
+                    
                     entities.append(DetectedEntity(
                         type=e.get('type', 'UNKNOWN'),
-                        value=e.get('value', ''),
+                        value=value,
                         start=e.get('start', 0),
                         end=e.get('end', 0),
                         confidence=e.get('confidence')
                     ))
                 
+                # Model outputs confidence 1-10, convert to 0-1 for API
+                raw_confidence = data.get('confidence', 5)
+                normalized_confidence = raw_confidence / 10.0 if raw_confidence > 1 else raw_confidence
+                
+                # If grounding removed all entities, unflag
+                flagged = data.get('flagged', False) and len(entities) > 0
+                reason = data.get('reason', '')
+                if data.get('flagged', False) and len(entities) == 0:
+                    reason = "No valid PII after grounding validation"
+                
                 return (
                     entities,
-                    data.get('confidence', 0.5),
-                    data.get('flagged', len(entities) > 0),
-                    data.get('reason', '')
+                    normalized_confidence,
+                    flagged,
+                    reason
                 )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             print(f"Error parsing model output: {e}")
@@ -152,10 +232,10 @@ class PIIDetector:
         try:
             import torch
             
-            # Prepare input
+            # Prepare input (must match training format)
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f'Detect PII in: "{text}"'}
+                {"role": "user", "content": f'Analyze for PII: "{text}"'}
             ]
             
             inputs = self.tokenizer.apply_chat_template(
@@ -180,8 +260,8 @@ class PIIDetector:
                 skip_special_tokens=True
             )
             
-            # Parse output
-            entities, confidence, _, _ = self._parse_model_output(output_text)
+            # Parse output with grounding validation
+            entities, confidence, _, _ = self._parse_model_output(output_text, text)
             return entities, confidence
             
         except Exception as e:
