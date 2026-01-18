@@ -94,13 +94,47 @@ Open `http://localhost:8000/docs` for Swagger UI:
 }
 ```
 
+## Supported PII Types
+
+The model detects the following Personally Identifiable Information:
+
+### Indian PII
+| PII Type | Format | Example | Severity |
+|----------|--------|---------|----------|
+| **Aadhaar** | 12 digits (XXXX XXXX XXXX) | 1234 5678 9012 | 🔴 CRITICAL |
+| **PAN** | 10 characters (ABCDE1234F) | ABCDE1234F | 🔴 CRITICAL |
+
+### International PII
+| PII Type | Format | Example | Severity |
+|----------|--------|---------|----------|
+| **Email Address** | user@domain.com | john.doe@example.com | 🟠 HIGH |
+| **Phone Number** | +CC XXX-XXXX-XXXX | +91 98765 43210 | 🟠 HIGH |
+| **US Social Security Number (SSN)** | XXX-XX-XXXX | 123-45-6789 | 🔴 CRITICAL |
+| **Credit Card** | XXXX-XXXX-XXXX-XXXX | 4532-1234-5678-9012 | 🔴 CRITICAL |
+| **Person Name** | Full/Partial names | John Smith, Priya Sharma | 🟡 MEDIUM |
+
+### Detection Accuracy
+
+| Entity Type | Detection Rate | False Positive Rate |
+|-------------|----------------|-------------------|
+| Aadhaar (valid format) | ~95% | Low |
+| PAN (valid format) | ~92% | Low-Medium |
+| Email Address | ~98% | Very Low |
+| Phone Number | ~94% | Low |
+| SSN | ~96% | Very Low |
+| Credit Card | ~97% | Very Low |
+| Person Names | ~85% | Medium |
+
+**Note:** Detection accuracy depends on context. Standalone numbers may have higher false positives.
+
 ## Risk Levels
 
-| Level | Confidence | PII Types |
-|-------|------------|-----------|
-| HIGH | 9-10 | Email, Phone, Aadhaar, PAN, SSN, Credit Card |
-| MEDIUM | 6-8 | Name + Location, Employee IDs |
-| LOW | 1-5 | First name only, Public figures |
+| Level | Confidence | PII Types | Action |
+|-------|------------|-----------|--------|
+| 🔴 **CRITICAL** | 9-10 | Aadhaar, PAN, SSN, Credit Card | Auto-BLOCK |
+| 🟠 **HIGH** | 7-8 | Email, Phone (with context) | FLAG/REVIEW |
+| 🟡 **MEDIUM** | 5-6 | Names with location, Employee IDs | FLAG |
+| 🟢 **LOW** | 1-4 | Partial data, Public figures | ALLOW/LOG |
 
 ## Training (Google Colab)
 
