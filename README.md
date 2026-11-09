@@ -1,4 +1,12 @@
-# PII Guardrail
+<h1 align="center">PII Guardrail</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3178C6?style=for-the-badge" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-7C3AED?style=for-the-badge" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Llama-0F766E?style=for-the-badge" alt="Llama" />
+  <img src="https://img.shields.io/badge/Portkey-334155?style=for-the-badge" alt="Portkey" />
+  <img src="https://img.shields.io/badge/PII%20Detection-A16207?style=for-the-badge" alt="PII Detection" />
+</p>
 
 Fine-tuned Llama 3.2-1B model for PII detection with FastAPI server and Portkey webhook integration.
 
